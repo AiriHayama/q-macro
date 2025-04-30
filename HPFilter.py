@@ -25,3 +25,7 @@ plt.plot(trend, label="Trend")
 # Add a legend and show the plot
 plt.legend()
 plt.show()
+
+#cd q-macro
+#pystart これでwork環境に変える
+#python [実行したい内容orファイル名]
