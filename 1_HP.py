@@ -24,5 +24,5 @@ plt.plot(trend, label="Trend")
 
 # Add a legend and show the plot
 plt.legend()
-plt.show()
 plt.savefig('gdp_trend_qatar.pdf')
+plt.show()
