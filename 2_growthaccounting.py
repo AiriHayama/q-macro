@@ -1,41 +1,35 @@
 import pandas as pd
 import numpy as np
 
-# pwt90 = pd.read_stata('https://www.rug.nl/ggdc/docs/pwt90.dta')
-pwt63 = pd.read_excel('/Users/airihayama/keio-macro/q-macro/pwt63_w_country_names.xls')
+pwt90 = pd.read_stata('https://www.rug.nl/ggdc/docs/pwt90.dta')
 
 oecd_countries = [
     'Japan', 'United States',
 ]
 
-# data = pwt90[
-#     pwt90['country'].isin(oecd_countries) &
-#     pwt90['year'].between(1960, 2000)
-# ]
-data = pwt63[
-    pwt63['country'].isin(oecd_countries) &
-    pwt63['year'].between(1960, 2000)
+data = pwt90[
+    pwt90['country'].isin(oecd_countries) &
+    pwt90['year'].between(1960, 2000)
 ]
 
-# relevant_cols = ['countrycode', 'country', 'year', 'rgdpna', 'rkna', 'pop', 'emp', 'avh', 'labsh', 'rtfpna']
-relevant_cols = ['isocode', 'country', 'year', 'POP', 'rgdpwok', 'rgdpl', 'rgdptt', 'ki', 'kg']
+relevant_cols = ['countrycode', 'country', 'year', 'rgdpna', 'rkna', 'pop', 'emp', 'avh', 'labsh', 'rtfpna']
 data = data[relevant_cols].dropna()
 
-data['Y'] = data['rgdpl'] * data['POP'] * 1000
-data['K'] = data['ki'] * 0.01 * data['Y']
-# data['y'] = data['rgdpwok']
-# data['y'] = (1.0 - data['kg'] * 0.01) * data['rgdpl']
-data['y_n'] = data['rgdpl']
-# data['y'] = (1.0 - data['kg'] * 0.01) * data['rgdpwok']
-data['k'] = data['ki'] * data['rgdpl'] * 0.01
-# data['alpha'] = data['rgdptt'] * data['ki'] * 0.01 / data['y_n']
-data['alpha'] = data['rgdptt'] * data['K'] / data['Y']
-data['A'] = data['y_n'] / (data['k'] ** data['alpha'])
-data = data.sort_values('year').groupby('isocode').apply(lambda x: x.assign(
-    y_shifted=100 * x['y_n'] / x['y_n'].iloc[0],
-    k_shifted=100 * x['k'] / x['k'].iloc[0],
-    alpha_shifted=100 * x['alpha'] / x['alpha'].iloc[0],
-    A_shifted=100 * x['A'] / x['A'].iloc[0],
+
+# Calculate additional variables
+data['alpha'] = 1 - data['labsh']
+data['y_n'] = data['rgdpna'] / data['emp']  # Y/N
+data['hours'] = data['emp'] * data['avh']  # L
+# data['tfp_term'] = data['rtfpna'] ** (1 / (1 - data['alpha']))  # A^(1/(1-alpha))
+data['tfp_term'] = (data['y_n'] / (data['rkna'] / data['emp']) ** data['alpha'] ) ** (1 / (1 - data['alpha']))  # A^(1/(1-alpha))
+data['cap_term'] = (data['rkna'] / data['rgdpna']) ** (data['alpha'] / (1 - data['alpha']))  # (K/Y)^(alpha/(1-alpha))
+data['lab_term'] = data['hours'] / data['pop']  # L/N
+data = data.sort_values('year').groupby('countrycode').apply(lambda x: x.assign(
+    alpha=1 - x['labsh'],
+    y_n_shifted=100 * x['y_n'] / x['y_n'].iloc[0],
+    tfp_term_shifted=100 * x['tfp_term'] / x['tfp_term'].iloc[0],
+    cap_term_shifted=100 * x['cap_term'] / x['cap_term'].iloc[0],
+    lab_term_shifted=100 * x['lab_term'] / x['lab_term'].iloc[0]
 )).reset_index(drop=True).dropna()
 
 
@@ -51,9 +45,9 @@ def calculate_growth_rates(country_data):
 
     g_y = ((end_data['y_n'] / start_data['y_n']) ** (1/years) - 1) * 100
 
-    g_k = ((end_data['k'] / start_data['k']) ** (1/years) - 1) * 100
+    g_k = ((end_data['cap_term'] / start_data['cap_term']) ** (1/years) - 1) * 100
 
-    g_a = ((end_data['A'] / start_data['A']) ** (1/years) - 1) * 100
+    g_a = ((end_data['tfp_term'] / start_data['tfp_term']) ** (1/years) - 1) * 100
 
     alpha_avg = (start_data['alpha'] + end_data['alpha']) / 2.0
     capital_deepening_contrib = alpha_avg * g_k
